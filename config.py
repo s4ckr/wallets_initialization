@@ -4,7 +4,7 @@ from solana.rpc.async_api import AsyncClient
 
 from aiogram import Bot, Dispatcher
 
-API_URL = "https://mainnet.helius-rpc.com/?api-key=456ca87b-9004-4270-971a-5a9838c6f925"
+API_URL = 
 
 async_client = AsyncClient(API_URL)
 
@@ -32,5 +32,6 @@ MEXC_WARM_CSV = os.path.join(BASE_DIR, r"mexc_warm.csv")
 GATE_WARM_CSV = os.path.join(BASE_DIR, r"gate_warm.csv")
 
 CEXS = os.path.join(BASE_DIR, r"cexs.json")
+
 
 TRANSIT_JSON = os.path.join(BASE_DIR, r"transit.json")
