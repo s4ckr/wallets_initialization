@@ -8,7 +8,7 @@
 
 пишем 
 
-<pre> ```>SSH``` </pre>
+<pre> '''>SSH''' </pre>
 
 <img width="594" height="336" alt="image" src="https://github.com/user-attachments/assets/bd418c4f-b680-47da-a047-286deb508dfd" />
 
