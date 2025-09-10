@@ -435,7 +435,7 @@ async def wallet_loop(password):
         print("Starting withdraw from CEX")
         await withdraw_cex(cex, cex_pk, cex_balance, amount, to_fund_pk, pre_balance, password)
         # wait before checking
-        sleep_time = 60 #random.randint(600, 3000)
+        sleep_time = random.randint(600, 3000)
         print("sleeping for ", sleep_time/60, " mins")
         await asyncio.sleep(sleep_time)
 
@@ -495,3 +495,4 @@ async def runner():
 
 if __name__ == "__main__":
     asyncio.run(runner())
+
