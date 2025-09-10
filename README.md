@@ -24,7 +24,42 @@
 
 после того как у нас открывается окно нашего сервера в консоли пишем
 
-<pre> mkdir wallets_init \n cd wallets_init</pre>
-
+<pre> mkdir wallets_init </pre>
+<pre> cd wallets_init </pre>
 <pre> git clone https://github.com/s4ckr/wallets_initialization</pre>
+<pre> mv /root/wallets_init/wallets_initialization/* /root/wallets_init </pre>
+<pre> rmdir /root/wallets_init/wallets_initialization </pre>
+<pre> pip3 install -r requirements.txt </pre>
 
+Скрипт установлен на сервере и лежит в папке /root/wallets_init
+
+теперь осталось заполнить недостающие данные
+
+в файле config.py:
+
+1.указать апи ключ и чат айди для телеграм бота 
+
+2.установить желаемые цексы для использования например: CEXS_LIST = ["MEXC", "Gate] для использования обеих бирж
+
+3.указать ссылку на хелиус
+
+в файле cexs.json заполнить данные о биржах
+
+в файле main.py на 426 строке в скобках вместо 0.1 и 0.5 указать минимальную и максимальную сумму для активации (если 0.1-0.5 не устраивает)
+
+после установки и заполнения нужных данных остаётся только в консоли в папке проекта вызвать
+
+<pre> python3.10 create_wallets_pool.py </pre>
+
+и следуя инструкции создать файл с фандингами нажав f 
+
+далее по желанию добавить неактивированые (cold) кошельки для одной из бирж и вы "good to go"
+
+в консоли в папке проекта вызвать 
+
+<pre> screen -S initialization python3 main.py | tee -a myscript.log </pre>
+
+и следуя инструкции запустить скрипт
+
+Вся информация которую необходимо будет внести в файл будет в сигнале
+В случае возникновения проблем, вопросов и тд пишите в телеграм или сигнал
