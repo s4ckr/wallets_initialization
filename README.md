@@ -24,8 +24,7 @@
 
 после того как у нас открывается окно нашего сервера в консоли пишем
 
-<pre> mkdir wallets_init </pre>
-<pre> cd wallets_init </pre>
+<pre> mkdir wallets_init \n cd wallets_init</pre>
 
 <pre> git clone https://github.com/s4ckr/wallets_initialization</pre>
 
