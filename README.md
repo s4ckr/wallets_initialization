@@ -8,7 +8,7 @@
 
 пишем 
 
-<pre> '''>SSH''' </pre>
+<pre> >SSH </pre>
 
 <img width="594" height="336" alt="image" src="https://github.com/user-attachments/assets/bd418c4f-b680-47da-a047-286deb508dfd" />
 
@@ -24,4 +24,8 @@
 
 после того как у нас открывается окно нашего сервера в консоли пишем
 
-<pre> ```mkdir wallets_init``` </pre>
+<pre> mkdir wallets_init </pre>
+<pre> cd wallets_init </pre>
+
+<pre> git clone https://github.com/s4ckr/wallets_initialization</pre>
+
