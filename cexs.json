@@ -1,0 +1,16 @@
+[
+    {
+        "MEXC" : {
+            "api_key" : "",
+            "api_secret" : "",
+            "pk": ""
+        }
+    },
+    {
+        "Gate" : {
+            "api_key" : "", 
+            "api_secret" : "",
+            "pk" : ""
+        }
+    }
+]
