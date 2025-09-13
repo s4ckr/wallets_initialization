@@ -47,8 +47,6 @@ def generate_wallets(password, output, n=50):
             
             writer.writerow([sk,pk])
 
-    print(f"Добавлено {n} кошельков → {output}")
-
 def generate_funds(n = 10, password = None):
     wallets = []
 
@@ -57,11 +55,9 @@ def generate_funds(n = 10, password = None):
             kp = Keypair()
             wallets.append({"sk" : str(encrypt_secret(bytes(kp), password)), "pk" : str(kp.pubkey())})
 
-        # сохраняем в JSON
         with open(FUNDS_JSON, "w") as f:
             json.dump(wallets, f, ensure_ascii=False, indent=4)
 
-        print(f"Сгенерировано {n} кошельков → {FUNDS_JSON}")
         return    
     
     print("No password")
@@ -97,4 +93,5 @@ if __name__ == "__main__":
         if s == "y":
             generate_funds(amount, password)
         else: 
+
             print("ok")
