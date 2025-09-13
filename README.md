@@ -60,8 +60,7 @@
 <pre> screen -S initialization python3 main.py | tee -a myscript.log </pre>
 или 
 
-<pre> screen -dmS initialization bash -lc '. .venv/bin/activate; python3 main_02.py |& tee -a myscript.log'
-screen -S initialization -X stuff $'\003'  </pre>
+<pre> screen -dmS initialization bash -lc '. .venv/bin/activate; python3 main_02.py |& tee -a myscript.log' </pre>
 
 и следуя инструкции запустить скрипт
 
