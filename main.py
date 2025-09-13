@@ -16,18 +16,17 @@ from solders.pubkey import Pubkey
 import cexs
 from create_wallets_pool import get_first_funding_tx
 from spl_trans import send_sol, send_transfer
-from config import PRE_JSON, MEXC_COLD_CSV, GATE_COLD_CSV, FUNDS_JSON, MEXC_WARM_CSV, GATE_WARM_CSV, TRANSIT_JSON, CEXS_LIST, async_client, bot, dp, CHAT_ID, CEXS
+from config import PRE_JSON, MEXC_COLD_CSV, GATE_COLD_CSV, FUNDS_JSON, MEXC_WARM_CSV, GATE_WARM_CSV, TRANSIT_JSON, CEXS_LIST, async_client, bot, dp, CHAT_ID, CEXS, BALANCE_THRESHOLD, ACTIVITY_THRESHOLD
 from encoding import decrypt_secret
 
 # ---------------- Monitor for wallet inactivity ----------------
 last_added_time = time.time()  
-THRESHOLD = 10800  
 
 async def monitor_inactivity():
     global last_added_time
     while True:
         await asyncio.sleep(300) 
-        if time.time() - last_added_time > THRESHOLD:
+        if time.time() - last_added_time > ACTIVITY_THRESHOLD:
             await send_alert("⚠️ BOT IS INACTIVE FOR 3 HOURS!")
 
 # ---------------- CSV helpers ----------------
@@ -109,7 +108,7 @@ async def start_command(message: Message):
 
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
-    total, mexc_balance, funds_balances, total_warm = await get_stats()
+    total, mexc_balance, gate_balance, funds_balances, total_warm = await get_stats()
     stats_message = f"Stats:\nTotal balance: {total} SOL\nMEXC balance: {mexc_balance}\nGate balance: {gate_balance}\nfunds balances sum: {funds_balances}\nwarm wallets amount: {total_warm}"
     await message.answer(stats_message)
 
@@ -264,7 +263,12 @@ async def update_total_balance(password, call: str = "save") -> float:
     if call == "save":
         with open(PRE_JSON, "r") as f:
             pre = json.load(f)
-        pre["balance"] = total
+        
+        if total < pre["balance"]-BALANCE_THRESHOLD:
+            pre["balance"] = total
+        else:
+            await send_alert(f"Total balance decreased too much, change amount: {pre["balance"]-total} SOL, total balance: {total} SOL")
+
         with open(PRE_JSON, "w", encoding="utf-8") as f:
             json.dump(pre, f, ensure_ascii=False, indent=2)
 
@@ -475,7 +479,7 @@ async def wallet_loop(password):
         last_added_time = time.time()
         
         # update total balance
-        total_balance = await update_total_balance(password, call="no")
+        total_balance = await update_total_balance(password, call="save")
         await send_alert(f"Total balance updated: {total_balance} SOL")
 
 async def password_buffer():
@@ -494,5 +498,4 @@ async def runner():
 
 if __name__ == "__main__":
     asyncio.run(runner())
-
 
