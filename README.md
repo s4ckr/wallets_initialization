@@ -60,7 +60,10 @@
 <pre> screen -S initialization python3 main_02.py | tee -a myscript.log </pre>
 или 
 
-<pre> screen -dmS initialization bash -lc 'python3 main_02.py |& tee -a myscript.log' </pre>
+<pre> screen -dmS initialization bash -lc '
+  cd /root/wallets_init &&
+  exec python -u main_02.py 2>&1 | tee -a /root/wallets_init/logs.log
+' </pre>
 
 для подключения к окну скрипта 
 
