@@ -35,5 +35,3 @@ FUNDS_JSON = os.path.join(BASE_DIR, r"fundings.json")
 MEXC_WARM_CSV = os.path.join(BASE_DIR, r"mexc_warm.csv")
 GATE_WARM_CSV = os.path.join(BASE_DIR, r"gate_warm.csv")
 CEXS = os.path.join(BASE_DIR, r"cexs.json")
-
-
