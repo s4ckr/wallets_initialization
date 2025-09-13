@@ -9,8 +9,8 @@ CHAT_ID =                                                   #Chat id
 
 # ---------------- Main setup ----------------
 HELIUS_API_KEY =                 #Helius API KEY
-API_URL =     #Helius API URL
-CEXS_LIST = ["Gate"]                                                     #list of cexs you'd like to use (now "Gate" and "MEXC")
+API_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"     #Helius API URL
+CEXS_LIST = ["Gate", "MEXC"]                                                     #list of cexs you'd like to use (now "Gate" and "MEXC")
 
 MIN_SLEEP_SECONDS = 600
 MAX_SLEEP_SECONDS = 1800
@@ -35,4 +35,5 @@ FUNDS_JSON = os.path.join(BASE_DIR, r"fundings.json")
 MEXC_WARM_CSV = os.path.join(BASE_DIR, r"mexc_warm.csv")
 GATE_WARM_CSV = os.path.join(BASE_DIR, r"gate_warm.csv")
 CEXS = os.path.join(BASE_DIR, r"cexs.json")
+
 
