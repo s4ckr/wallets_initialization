@@ -62,6 +62,13 @@
 
 <pre> screen -dmS initialization bash -lc '. .venv/bin/activate; python3 main_02.py |& tee -a myscript.log' </pre>
 
+для подключения к окну скрипта 
+
+<pre> screen -r initialization </pre>
+
+для удаления окна скрипта и его выключения 
+<pre> screen -X -S initialization </pre>
+
 и следуя инструкции запустить скрипт
 
 Вся информация которую необходимо будет внести в файл будет в сигнале
