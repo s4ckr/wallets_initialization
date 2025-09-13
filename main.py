@@ -90,7 +90,6 @@ async def add_warm_wallet(cex, wallet):
         fieldnames = ["sk", "pk", "fund_datetime", "funder_pk"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
 
-        # если файл только что создан — пишем заголовок
         if not file_exists:
             writer.writeheader()
 
@@ -490,9 +489,10 @@ async def runner():
     await asyncio.gather(
         password_buffer(),
         dp.start_polling(bot),
-        monitor_inactivity()  # <- новый таск
+        monitor_inactivity() 
     )
 
 if __name__ == "__main__":
     asyncio.run(runner())
+
 
