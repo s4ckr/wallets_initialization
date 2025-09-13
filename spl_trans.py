@@ -154,16 +154,16 @@ async def send_sol(kp: Keypair, dest: Pubkey):
     while retry < 4:
         try:
             print(f"try to send sol from {kp.pubkey()} to {dest}")
-            # Получаем текущий баланс SOL
+            
             sol_balance = float(((await async_client.get_balance(kp.pubkey(), "processed")).value)/10**9)
-            # Оставляем минимально возможный остаток (1 лампорт = 0.000000001 SOL)
+           
             min_left = 0.000005
             sol_to_send = sol_balance - min_left
             if sol_to_send <= 0:
                 print("Not enough funds for sending.")
                 return False
 
-            # Используем sol_to_send для отправки
+            
             create_ix, wsol_token_account = await create_and_fund_wsol_account(str(kp), sol_to_send)
 
             # 2. Close WSOL account and transfer to receiver
@@ -245,6 +245,3 @@ async def send_transfer(from_kp, dest_pk):
         print("transfer exception", e)
         return False
     
-# kp = Keypair.from_base58_string("5KhWTX9G6gSUTvEBLSUDfiQgoK6zPeeaD464j2cyrPk5VPRxkakduACMe9YihRNVuLWqsUoBx1tZynd7dyApyPZE")
-# dest_pk = Pubkey.from_string("HbA4WUDj2sno66JBYhhcT3SLSJYRU3gKdT4Wm7VcFHB4")
-# asyncio.run(send_transfer(kp, dest_pk))
