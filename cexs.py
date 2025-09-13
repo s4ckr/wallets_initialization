@@ -4,21 +4,7 @@ import hashlib
 import requests
 import json
 import ccxt
-from config import CEXS
-
-with open(CEXS, "r") as f:
-    data = json.load(f)
-
-for w in data:
-    if w.get("MEXC"):
-        MEXC_API_KEY = w["MEXC"]["api_key"]
-        MEXC_API_SECRET = w["MEXC"]["api_secret"]
-        MEXC_PK = w["MEXC"]["pk"]
-
-    elif w.get("Gate"):
-        GATE_API_KEY = w["Gate"]["api_key"]
-        GATE_API_SECRET = w["Gate"]["api_secret"]
-        GATE_PK = w["Gate"]["pk"]
+from config import MEXC_API_KEY, MEXC_API_SECRET, MEXC_PK, GATE_API_KEY, GATE_API_SECRET, GATE_PK
 
 def mexc_withdraw(amount, address):
     exchange = ccxt.mexc({
@@ -71,18 +57,12 @@ def gate_withdraw(amount, address):
 
 async def get_cex_balance(cex):
     if cex == "MEXC":
-        for i in data:
-            if i.get(cex):
-                pk = i[cex]["pk"]
-                balance, _ = get_mexc_balance()
-                return balance, pk
+        balance, _ = get_mexc_balance()
+        return balance, MEXC_PK
             
     elif cex == "Gate":
-        for i in data:
-            if i.get(cex):
-                pk = i[cex]["pk"]
-                balance, _ = get_gate_balance()
-                return balance, pk
+        balance, _ = get_gate_balance()
+        return balance, GATE_PK
 
 BASE_URL = "https://api.mexc.com"
 
@@ -149,4 +129,5 @@ def get_gate_balance(coin="SOL"):
         locked = balances["locked"]
         return float(free), float(locked)
         
+
     return 0.0, 0.0
