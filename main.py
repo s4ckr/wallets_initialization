@@ -16,7 +16,7 @@ from solders.pubkey import Pubkey
 import cexs
 from create_wallets_pool import get_first_funding_tx
 from spl_trans import send_sol, send_transfer
-from config import PRE_JSON, MEXC_COLD_CSV, GATE_COLD_CSV, FUNDS_JSON, MEXC_WARM_CSV, GATE_WARM_CSV, TRANSIT_JSON, CEXS_LIST, async_client, bot, dp, CHAT_ID, CEXS, BALANCE_THRESHOLD, ACTIVITY_THRESHOLD
+from config import PRE_JSON, MEXC_COLD_CSV, GATE_COLD_CSV, FUNDS_JSON, MEXC_WARM_CSV, GATE_WARM_CSV, CEXS_LIST, async_client, bot, dp, CHAT_ID, BALANCE_THRESHOLD, ACTIVITY_THRESHOLD
 from encoding import decrypt_secret
 
 # ---------------- Monitor for wallet inactivity ----------------
