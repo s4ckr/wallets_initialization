@@ -4,7 +4,7 @@ import getpass
 from solders.keypair import Keypair
 from encoding import encrypt_secret
 
-from config import MEXC_COLD_CSV, GATE_COLD_CSV, FUNDS_JSON
+from config import COLD_CSV, GATE_CSV, MEXC_CSV
 import json
 import csv
 import datetime
@@ -55,7 +55,7 @@ def generate_funds(n = 10, password = None):
             kp = Keypair()
             wallets.append({"sk" : str(encrypt_secret(bytes(kp), password)), "pk" : str(kp.pubkey())})
 
-        with open(FUNDS_JSON, "w") as f:
+        with open(COLD_CSV, "w") as f:
             json.dump(wallets, f, ensure_ascii=False, indent=4)
 
         return    
@@ -85,9 +85,9 @@ if __name__ == "__main__":
     amount = int(input("Enter wallets amount: "))
 
     if csv_type == "MEXC":
-        generate_wallets(password, n=amount, output=MEXC_COLD_CSV)
+        generate_wallets(password, n=amount, output=MEXC_CSV)
     elif csv_type == "Gate":
-        generate_wallets(password, n=amount, output=GATE_COLD_CSV)
+        generate_wallets(password, n=amount, output=GATE_CSV)
     elif csv_type == "f":
         s = input("Are you sure you want to recreate fundings file? (y/n): ")
         if s == "y":
