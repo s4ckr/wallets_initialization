@@ -387,19 +387,13 @@ async def _get_balance_sol(async_client, pubkey_str: str) -> float:
     return resp.value / 1e9
 
 async def confirm_deposit_or_alert(
-    target_pubkey: str,          # адрес пополняемого аккаунта (депозита)
-    source_pubkey: str,          # адрес кошелька-источника
-    amount_sent_sol: float,      # сумма пополнения (SOL)
-    before_balance_sol: float,   # баланс target ДО пополнения (SOL)
-    recheck_delay_sec: int = 1800,   # ОБЩЕЕ окно ожидания (по умолчанию 30 мин)
-    poll_interval_sec: int = 120     # интервал опроса (по умолчанию 2 мин)
+    target_pubkey: str,          
+    source_pubkey: str,          
+    amount_sent_sol: float,      
+    before_balance_sol: float,   
+    recheck_delay_sec: int = 1800,  
+    poll_interval_sec: int = 120     
 ) -> bool:
-    """
-    Периодически проверяет, что баланс target >= before + amount.
-    Чекает сразу, затем каждые poll_interval_sec, пока не истечёт recheck_delay_sec.
-    При провале шлёт алерт и завершает процесс.
-    """
-    BALANCE_THRESHOLD = 1e-6  # небольшой допуск на комиссии/округления
     expected = float(before_balance_sol) + float(amount_sent_sol)
     deadline = time.time() + float(recheck_delay_sec)
     last_seen = None
@@ -416,7 +410,6 @@ async def confirm_deposit_or_alert(
 
         await asyncio.sleep(min(poll_interval_sec, max(remaining, 0)))
 
-    # Дважды/многократно не выполнилось — алерт и стоп
     msg = (
         "⚠️ Пополнение не подтверждено.\n"
         f"Аккаунт: {target_pubkey}\n"
