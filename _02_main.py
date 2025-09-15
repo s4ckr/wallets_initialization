@@ -294,9 +294,15 @@ async def fund_cex(
             if float(other_balance) + BALANCE_THRESHOLD >= shortfall:
                 try:
                     if other == "MEXC":
-                        cexs.mexc_withdraw(shortfall, str(cex_pk))
+                        if shortfall < 0.1 and other_balance >= 0.1:
+                            cexs.mexc_withdraw(0.1, str(cex_pk))
+                        else:
+                            cexs.mexc_withdraw(shortfall, str(cex_pk))
                     elif other == "Gate":
-                        cexs.gate_withdraw(shortfall, str(cex_pk))
+                        if shortfall < 0.101 and other_balance >= 0.101:
+                            cexs.gate_withdraw(0.101, str(cex_pk))
+                        else:
+                            cexs.gate_withdraw(shortfall, str(cex_pk))
                     else:
                         continue
                 except Exception as e:
