@@ -6,6 +6,7 @@ import getpass
 import csv
 import datetime
 import os
+import traceback
 
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -35,6 +36,7 @@ async def monitor_inactivity():
         await asyncio.sleep(300) 
         if time.time() - last_added_time > ACTIVITY_THRESHOLD:
             await send_alert("⚠️ BOT IS INACTIVE FOR 3 HOURS!")
+            raise SystemExit(1)
 
 # ---------------- CSV helpers ----------------
 def load_wl(cex):
@@ -63,15 +65,13 @@ def load_cold_wallets(cex: str | None = None) -> list[dict]:
             rows.append({"sk": row.get("sk",""), "pk": row["pk"]})
     return rows
 
-def load_warm_wallets(cex: str | None = None) -> list[dict]:
+def load_warm_wallets() -> list[dict]:
     rows = []
     if not os.path.exists(WARM_CSV):
         return rows
     with open(WARM_CSV, "r", newline="", encoding="utf-8") as f:
         r = csv.DictReader(f)
         for row in r:
-            if cex and "cex" in row and row["cex"] != cex:
-                continue
             rows.append({"sk": row.get("sk",""), "pk": row["pk"]})
     return rows
 
@@ -130,6 +130,23 @@ async def add_bonded_wallet(cex, wallet):
 @dp.message(Command("start"))
 async def start_command(message: Message):
     await message.answer("👋 Bot is online! Use /stats to get statistics.")
+
+@dp.message(Command("/stats"))
+async def start_command(message: Message):
+    warm_wallets = load_warm_wallets()
+    bonded_balance = 0 
+
+    bonded = load_bonded()
+
+    for w in bonded:
+        pk = str(w["pk"]).strip()
+        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
+        bonded_balance += sol_balance
+
+    mexc_balance, _ = await cexs.get_cex_balance("MEXC")
+    gate_balance, _ = await cexs.get_cex_balance("Gate")
+    
+    await message.answer(f"Stats: \nWarm wallets amount: {len(warm_wallets)}\nBonded total balance: {bonded_balance}\nMexc balance: {mexc_balance}\nGate balance: {gate_balance}")
 
 async def send_alert(text: str):
     """Send message to Telegram chat."""
@@ -217,11 +234,11 @@ async def _get_sol_balance(kp: Keypair) -> float:
 async def fund_cex(
     cex: str,
     cex_pk: str,
-    S: float,                     
+    S: float,
     password: str,
-    warm_csv_path: str = WARM_CSV,           
-    pace_sleep_sec: float = 20.0, 
-    recheck_delay_sec: int = 1800 
+    bonded_csv_path: str = BONDED_CSV,
+    pace_sleep_sec: float = 10.0,
+    recheck_delay_sec: int = 1800
 ) -> bool:
     B, _ = await cexs.get_cex_balance(cex)
     need = max(0.0, S - float(B))
@@ -231,7 +248,7 @@ async def fund_cex(
     used_wallet_pks: List[str] = []
     sent_total = 0.0
 
-    with open(warm_csv_path, "r", newline="", encoding="utf-8") as f:
+    with open(bonded_csv_path, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             enc_sk = row.get("sk")
@@ -254,8 +271,8 @@ async def fund_cex(
                 continue
 
             try:
-                await send_transfer(kp, Pubkey.from_string(cex_pk))
-            except Exception as e:
+                await send_transfer(kp, Pubkey.from_string(cex_pk)) 
+            except Exception:
                 continue
 
             used_wallet_pks.append(pk_str)
@@ -264,33 +281,71 @@ async def fund_cex(
             if pace_sleep_sec > 0:
                 await asyncio.sleep(pace_sleep_sec)
 
-            if sent_total >= need:
+            if sent_total + BALANCE_THRESHOLD >= need:
                 break
 
-    if sent_total < need:
+    shortfall = max(0.0, need - sent_total)
+    if shortfall > BALANCE_THRESHOLD:
+        others = [name for name in CEXS_LIST if name != cex]
+        picked_other = None
+
+        for other in others:
+            other_balance, _ = await cexs.get_cex_balance(other)
+            if float(other_balance) + BALANCE_THRESHOLD >= shortfall:
+                try:
+                    if other == "MEXC":
+                        cexs.mexc_withdraw(shortfall, str(cex_pk))
+                    elif other == "Gate":
+                        cexs.gate_withdraw(shortfall, str(cex_pk))
+                    else:
+                        continue
+                except Exception as e:
+                    continue
+
+                picked_other = other
+                break
+
+        if picked_other is None:
+            msg = (
+                f"⚠️ Insufficient funds to fund {cex}.\n"
+                f"Target S={S:.9f} SOL, initial balance B={B:.9f} SOL, shortfall {shortfall:.9f} SOL.\n"
+                f"Only {sent_total:.9f} SOL could be sent from warm.\n"
+                f"Warm sources: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
+            )
+            await send_alert(msg)
+            raise SystemExit(1)
+
+        expected_total = float(B) + float(sent_total) + float(shortfall)
+        deadline = time.time() + recheck_delay_sec
+        while time.time() < deadline:
+            cur, _ = await cexs.get_cex_balance(cex)
+            if float(cur) + BALANCE_THRESHOLD >= expected_total:
+                return True
+            await asyncio.sleep(20)
+
+        cur, _ = await cexs.get_cex_balance(cex)
         msg = (
-            f"⚠️ Insufficient funds to fund {cex}.\n"
-            f"Target S={S:.9f} SOL, initial balance B={B:.9f} SOL, shortfall {need:.9f} SOL.\n"
-            f"Only {sent_total:.9f} SOL could be sent.\n"
+            f"⚠️ {cex}: balance did not update after cross-exchange funding from {picked_other}.\n"
+            f"Expected ≥ {expected_total:.9f} SOL, actual: {float(cur):.9f} SOL.\n"
+            f"Warm sources: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
         )
         await send_alert(msg)
         raise SystemExit(1)
-
+    
     B1, _ = await cexs.get_cex_balance(cex)
-    if float(B1) >= float(B) + float(sent_total):
+    if float(B1) + BALANCE_THRESHOLD >= float(B) + float(sent_total):
         return True
 
     await asyncio.sleep(recheck_delay_sec)
     B2, _ = await cexs.get_cex_balance(cex)
-    if float(B2) >= float(B) + float(sent_total):
+    if float(B2) + BALANCE_THRESHOLD >= float(B) + float(sent_total):
         return True
 
     msg = (
         f"⚠️ {cex}: balance did not update after funding.\n"
         f"Expected ≥ {(B + sent_total):.9f} SOL, actual: {float(B2):.9f} SOL.\n"
-        f"Source wallets: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
+        f"Warm sources: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
     )
-
     await send_alert(msg)
     raise SystemExit(1)
 
@@ -344,7 +399,7 @@ async def confirm_deposit_or_alert(
     Чекает сразу, затем каждые poll_interval_sec, пока не истечёт recheck_delay_sec.
     При провале шлёт алерт и завершает процесс.
     """
-    EPS = 1e-6  # небольшой допуск на комиссии/округления
+    BALANCE_THRESHOLD = 1e-6  # небольшой допуск на комиссии/округления
     expected = float(before_balance_sol) + float(amount_sent_sol)
     deadline = time.time() + float(recheck_delay_sec)
     last_seen = None
@@ -352,7 +407,7 @@ async def confirm_deposit_or_alert(
     while True:
         now = await _get_balance_sol(async_client, target_pubkey)
         last_seen = now
-        if now + EPS >= expected:
+        if now + BALANCE_THRESHOLD >= expected:
             return True
 
         remaining = deadline - time.time()
@@ -451,16 +506,38 @@ async def wallet_loop(password):
 
 async def password_buffer():
     password = getpass.getpass("Enter password: ")
-    print("Password check passed!")
+    mexc_wl = load_wl("MEXC")
 
-    await wallet_loop(password)
+    w = mexc_wl[0]
+    w_sk = decrypt_secret(w["sk"], password)
+    try:
+        Keypair.from_base58_string(w_sk)
+        print("Password check passed!")
+        await wallet_loop(password)
+    except:
+        print("Wrong password!")
+        await send_alert("Wrong password!")
+        raise SystemExit(1)
+
+async def supervise(coro, name):
+    try:
+        await coro
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[{name}] crashed: {e}\n{tb}")
+        try:
+            await send_alert(f"❗Task `{name}` crashed: {e}")
+        except:
+            pass
+        raise
 
 # ---------------- Runner ----------------
 async def runner():
+    password = await password_buffer()
     await asyncio.gather(
-        password_buffer(),
-        dp.start_polling(bot),
-        monitor_inactivity() 
+        supervise(wallet_loop(password), "wallets_init"),
+        supervise(dp.start_polling(bot), "tg_bot"),
+        supervise(monitor_inactivity(), "monitor"),
     )
 
 if __name__ == "__main__":
