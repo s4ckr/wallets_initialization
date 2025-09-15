@@ -11,18 +11,26 @@ import datetime
 from solders.pubkey import Pubkey
 from config import async_client
 
-async def get_first_funding_tx(pubkey: str):
+async def get_first_funding_tx(pubkey: str, *, tz: datetime.tzinfo = datetime.timezone.utc):
+    """
+    Возвращает (datetime_iso, funder_pk), где datetime — время блока первой (самой старой в лимите) транзакции,
+    приведённое к указанной таймзоне (по умолчанию UTC).
+    """
     sigs = await async_client.get_signatures_for_address(Pubkey.from_string(pubkey), limit=1000)
     if not sigs.value:
         return None, None
 
     oldest_sig = sigs.value[-1].signature
     tx = await async_client.get_transaction(oldest_sig, max_supported_transaction_version=0)
-
     if not tx.value:
         return None, None
+
     block_time = tx.value.block_time
-    fund_datetime = datetime.datetime.now(datetime.UTC).isoformat() if block_time else None
+    if block_time is not None:
+        dt_utc = datetime.datetime.fromtimestamp(block_time, tz=datetime.timezone.utc)
+        fund_datetime = dt_utc.astimezone(tz).isoformat()
+    else:
+        fund_datetime = None
 
     try:
         funder_pk = str(tx.value.transaction.transaction.message.account_keys[0])
