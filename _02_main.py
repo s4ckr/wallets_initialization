@@ -512,7 +512,7 @@ async def password_buffer():
     try:
         Keypair.from_base58_string(w_sk)
         print("Password check passed!")
-        await wallet_loop(password)
+        return password
     except:
         print("Wrong password!")
         await send_alert("Wrong password!")
