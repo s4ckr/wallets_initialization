@@ -4,7 +4,7 @@ import getpass
 from solders.keypair import Keypair
 from encoding import encrypt_secret
 
-from config import COLD_CSV, GATE_CSV, MEXC_CSV
+from config import COLD_CSV, GATE_CSV, MEXC_CSV, NEW_CSV
 import json
 import csv
 import datetime
@@ -80,14 +80,16 @@ def password_buffer():
 if __name__ == "__main__":
     password = password_buffer()
     
-    csv_type = input("Enter the type of csv you'd like to extend (MEXC, Gate) or enter f to recreate fundings file: ")
+    csv_type = input("Enter the type of csv you'd like to extend (MEXC, Gate) or enter f to recreate fundings file of new to add new wls: ")
 
     amount = int(input("Enter wallets amount: "))
 
     if csv_type == "MEXC":
-        generate_wallets(password, n=amount, output=MEXC_CSV)
+        generate_wallets(password, n=amount, output=COLD_CSV)
     elif csv_type == "Gate":
         generate_wallets(password, n=amount, output=GATE_CSV)
+    elif csv_type == "new":
+        generate_wallets(password, n=amount, output=NEW_CSV)
     elif csv_type == "f":
         s = input("Are you sure you want to recreate fundings file? (y/n): ")
         if s == "y":
