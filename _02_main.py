@@ -29,14 +29,17 @@ from encoding import decrypt_secret
 last_added_time = time.time()  
 LAMPORTS_PER_SOL = 1_000_000_000
 
+def get_ts():
+    ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]  
+    return ts
 
 async def monitor_inactivity():
     global last_added_time
     while True:
-        await asyncio.sleep(300) 
+        await asyncio.sleep(30)
         if time.time() - last_added_time > ACTIVITY_THRESHOLD:
-            await send_alert("⚠️ BOT IS INACTIVE FOR 3 HOURS!")
-            raise SystemExit(1)
+            await send_alert(f"[{get_ts()}] | ⚠️ BOT IS INACTIVE FOR 3 HOURS!")
+            last_added_time = time.time()  # сброс, НЕ завершаем процесс    
 
 # ---------------- CSV helpers ----------------
 def load_wl(cex):
@@ -94,45 +97,58 @@ async def add_warm_wallet(cex, wallet):
     path = WARM_CSV
     file_exists = os.path.isfile(path)
     pk = _wallet_to_pk(wallet)
+
+    try:
+        time.sleep(16)
+        fund_datetime, funder_pk = await get_first_funding_tx(pk)
+    except Exception as e:
+        await send_alert(f"[{get_ts()}] | get_first_funding_tx failed for {pk}: {e}")
+        fund_datetime, funder_pk = "", ""
+
     with open(path, "a", newline="", encoding="utf-8") as f:
         fieldnames = ["sk", "pk", "fund_datetime", "funder_pk", "cex"]
         w = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
             w.writeheader()
-        fund_datetime, funder_pk = await get_first_funding_tx(pk)
         w.writerow({
             "sk": wallet["sk"] if isinstance(wallet, dict) else "",
             "pk": pk,
-            "fund_datetime": fund_datetime,
-            "funder_pk": str(funder_pk),
+            "fund_datetime": fund_datetime or "",
+            "funder_pk": str(funder_pk) if funder_pk else "",
             "cex": cex
         })
-
 async def add_bonded_wallet(cex, wallet):
     path = BONDED_CSV
     file_exists = os.path.isfile(path)
     pk = _wallet_to_pk(wallet)
+    try:
+        time.sleep(16)
+        fund_datetime, funder_pk = await get_first_funding_tx(pk)
+    except Exception as e:
+        # не валим луп, просто пишем пустые поля и предупреждаем
+        await send_alert(f"[{get_ts()}] | get_first_funding_tx failed for {pk}: {e}")
+        fund_datetime, funder_pk = "", ""
+
     with open(path, "a", newline="", encoding="utf-8") as f:
         fieldnames = ["sk", "pk", "fund_datetime", "funder_pk", "cex"]
         w = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
             w.writeheader()
-        fund_datetime, funder_pk = await get_first_funding_tx(pk)
         w.writerow({
             "sk": wallet["sk"] if isinstance(wallet, dict) else "",
             "pk": pk,
-            "fund_datetime": fund_datetime,
-            "funder_pk": str(funder_pk),
+            "fund_datetime": fund_datetime or "",
+            "funder_pk": str(funder_pk) if funder_pk else "",
             "cex": cex
         })
 
 # ---------------- Bot commands ----------------
 @dp.message(Command("start"))
-async def start_command(message: Message):
+async def start_cmd(message: Message):
     await message.answer("👋 Bot is online! Use /stats to get statistics.")
 
-@dp.message(Command("/stats"))
-async def start_command(message: Message):
+@dp.message(Command("stats"))   # без слэша
+async def stats_cmd(message: Message):
     warm_wallets = load_warm_wallets()
     bonded_balance = 0 
 
@@ -157,11 +173,11 @@ async def update_total_balance(password, call: str = "save") -> float:
 
     # CEX balance
     mexc_balance, _ = cexs.get_mexc_balance()
-    print("MEXC balance: ", mexc_balance)
+    print(f"[{get_ts()}] | MEXC balance: ", mexc_balance)
     total += mexc_balance
 
     gate_balance, _ = cexs.get_gate_balance()
-    print("Gate balance:", gate_balance)
+    print(f"[{get_ts()}] | Gate balance:", gate_balance)
     total += gate_balance
 
     mexc_wl = load_wl("MEXC")
@@ -172,7 +188,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         total += sol_balance
 
     mexc_wl_balances = total - mexc_balance - gate_balance
-    print("MEXC wl balances: ", mexc_wl_balances)
+    print(f"[{get_ts()}] | MEXC wl balances: ", mexc_wl_balances)
 
     gate_wl = load_wl("Gate")
 
@@ -182,7 +198,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         total += sol_balance
 
     gate_wl_balances = total - mexc_balance - gate_balance - mexc_wl_balances
-    print("Gate wl balances: ", gate_wl_balances)
+    print(f"[{get_ts()}] | Gate wl balances: ", gate_wl_balances)
 
     # Cold wallets (CSV)
     warm = load_warm_wallets()
@@ -192,7 +208,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         total += sol_balance
 
     warm_balances = total - mexc_balance - gate_balance - mexc_wl_balances - gate_wl_balances
-    print("Warm balances: ", warm_balances)
+    print(f"[{get_ts()}] | Warm balances: ", warm_balances)
 
     bonded = load_bonded()
     for w in bonded:
@@ -201,29 +217,29 @@ async def update_total_balance(password, call: str = "save") -> float:
         total += sol_balance
 
     bonded_balances = total - mexc_balance - gate_balance - warm_balances - mexc_wl_balances - gate_wl_balances
-    print("Bonded balances: ", bonded_balances)
+    print(f"[{get_ts()}] | Bonded balances: ", bonded_balances)
 
     total = round(total, 6)
 
-    print("Total: ", total)
+    print(f"[{get_ts()}] | Total: ", total)
 
     total_warm = len(warm)
 
-    print("Warm amount: ", total_warm)
+    print(f"[{get_ts()}] | Warm amount: ", total_warm)
 
     if call == "save":
         with open(PRE_JSON, "r") as f:
             pre = json.load(f)
         
         if total < pre["balance"]-BALANCE_THRESHOLD:
-            await send_alert(f"Total balance decreased too much, change amount: {pre['balance']-total} SOL, total balance: {total} SOL")
+            await send_alert(f"[{get_ts()}] | Total balance decreased too much, change amount: {pre['balance']-total} SOL, total balance: {total} SOL")
         else:
             pre["balance"] = total
             
         with open(PRE_JSON, "w", encoding="utf-8") as f:
             json.dump(pre, f, ensure_ascii=False, indent=2)
 
-    await send_alert(f"💰 Balance snapshot saved\n Total: {total} SOL \nMEXC:{mexc_balance} \nBonded:{bonded_balances}")
+    await send_alert(f"[{get_ts()}] | 💰 Balance snapshot saved\n Total: {total} SOL \nMEXC:{mexc_balance} \nBonded:{bonded_balances}")
 
     return total
 
@@ -237,8 +253,8 @@ async def fund_cex(
     S: float,
     password: str,
     bonded_csv_path: str = BONDED_CSV,
-    pace_sleep_sec: float = 10.0,
-    recheck_delay_sec: int = 1800
+    pace_sleep_sec: float = 20.0,
+    recheck_delay_sec: int = 180
 ) -> bool:
     B, _ = await cexs.get_cex_balance(cex)
     need = max(0.0, S - float(B))
@@ -267,7 +283,7 @@ async def fund_cex(
             except Exception:
                 continue
 
-            if bal <= 0.00205:
+            if bal <= 0.01:
                 continue
 
             try:
@@ -318,33 +334,33 @@ async def fund_cex(
                 f"Only {sent_total:.9f} SOL could be sent from warm.\n"
                 f"Warm sources: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
             )
-            await send_alert(msg)
+            await send_alert(f"[{get_ts()}] | {msg}")
             raise SystemExit(1)
 
-        expected_total = float(B) + float(sent_total) + float(shortfall)
         deadline = time.time() + recheck_delay_sec
         while time.time() < deadline:
             cur, _ = await cexs.get_cex_balance(cex)
-            if float(cur) + BALANCE_THRESHOLD >= expected_total:
+            if float(cur) + BALANCE_THRESHOLD >= float(B):
                 return True
             await asyncio.sleep(20)
 
         cur, _ = await cexs.get_cex_balance(cex)
         msg = (
             f"⚠️ {cex}: balance did not update after cross-exchange funding from {picked_other}.\n"
-            f"Expected ≥ {expected_total:.9f} SOL, actual: {float(cur):.9f} SOL.\n"
+            f"Expected ≥ {float(B):.9f} SOL, actual: {float(cur):.9f} SOL.\n"
             f"Warm sources: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
         )
-        await send_alert(msg)
+        await send_alert(f"[{get_ts()}] | {msg}")
         raise SystemExit(1)
     
+    await asyncio.sleep(recheck_delay_sec)
     B1, _ = await cexs.get_cex_balance(cex)
-    if float(B1) + BALANCE_THRESHOLD >= float(B) + float(sent_total):
+    if float(B1) >= float(B):
         return True
 
     await asyncio.sleep(recheck_delay_sec)
     B2, _ = await cexs.get_cex_balance(cex)
-    if float(B2) + BALANCE_THRESHOLD >= float(B) + float(sent_total):
+    if float(B2) >= float(B):
         return True
 
     msg = (
@@ -352,7 +368,7 @@ async def fund_cex(
         f"Expected ≥ {(B + sent_total):.9f} SOL, actual: {float(B2):.9f} SOL.\n"
         f"Warm sources: {', '.join(used_wallet_pks) if used_wallet_pks else '—'}"
     )
-    await send_alert(msg)
+    await send_alert(f"[{get_ts()}] | {msg}")
     raise SystemExit(1)
 
 async def withdraw_cex(cex, cex_pk, cex_balance, amount, to_fund_pk, pre_balance, password):
@@ -362,18 +378,18 @@ async def withdraw_cex(cex, cex_pk, cex_balance, amount, to_fund_pk, pre_balance
             mexc_balance, _ = cexs.get_mexc_balance()
 
             if mexc_balance >= amount: 
-                print("MEXC ", amount)
+                print(f"[{get_ts()}] | MEXC ", amount)
                 msg = cexs.mexc_withdraw(amount, str(to_fund_pk))
                 return
         
             else:
-                print("Insufficient balance")
+                print(f"[{get_ts()}] | Insufficient balance")
                 await fund_cex(cex, cex_pk, amount, password)
                 cexs.mexc_withdraw(amount, str(to_fund_pk))
                 return
             
         elif cex == "Gate":
-            print("Gate ", amount)
+            print(f"[{get_ts()}] | Gate ", amount)
 
             gate_balance, _ = cexs.get_gate_balance()
 
@@ -382,7 +398,7 @@ async def withdraw_cex(cex, cex_pk, cex_balance, amount, to_fund_pk, pre_balance
                 return
             
             else:
-                print("Insufficient balance")
+                print(f"[{get_ts()}] | Insufficient balance")
                 await fund_cex(cex, cex_pk, amount, password)
                 cexs.gate_withdraw(amount, str(to_fund_pk))
                 return
@@ -397,8 +413,8 @@ async def confirm_deposit_or_alert(
     source_pubkey: str,          
     amount_sent_sol: float,      
     before_balance_sol: float,   
-    recheck_delay_sec: int = 1800,  
-    poll_interval_sec: int = 120     
+    recheck_delay_sec: int = 120,  
+    poll_interval_sec: int = 30     
 ) -> bool:
     expected = float(before_balance_sol) + float(amount_sent_sol)
     deadline = time.time() + float(recheck_delay_sec)
@@ -424,7 +440,7 @@ async def confirm_deposit_or_alert(
         f"Фактический баланс: {last_seen:.9f} SOL.\n"
         f"Источник вывода: {source_pubkey}"
     )
-    await send_alert(msg)
+    await send_alert(f"[{get_ts()}] | {msg}")
     raise SystemExit(1)
 # ---------------- Main wallet logic ----------------
 async def wallet_loop(password):
@@ -440,8 +456,8 @@ async def wallet_loop(password):
         wl = load_wl(cex)  
         candidates = [w for w in wl if w["pk"] not in warm_pks]
         if not candidates:
-            await asyncio.sleep(60)
-            await send_alert("NO CANDIDATES")
+            await asyncio.sleep(30)
+            await send_alert(f"[{get_ts()}] | NO CANDIDATES for {cex}")
             continue
 
         w1 = random.choice(candidates)
@@ -458,10 +474,10 @@ async def wallet_loop(password):
         await withdraw_cex(cex, cex_pk, cex_balance, amount, w1_pk, w1_before, password)
 
         to_sleep = random.randint(MIN_SLEEP_SECONDS, MAX_SLEEP_SECONDS)
-        print(f"Sleeping for {to_sleep/60} min")
+        print(f"[{get_ts()}] | Sleeping for {to_sleep/60} min")
         await asyncio.sleep(to_sleep)
 
-        await confirm_deposit_or_alert(str(w1_pk), str(cex_pk), amount, 0)
+        await confirm_deposit_or_alert(str(w1_pk), str(cex_pk), amount, w1_before)
 
         await add_warm_wallet(cex, w1)
 
@@ -470,7 +486,7 @@ async def wallet_loop(password):
         bonded_pks = {w["pk"] for w in bonded_rows}
         cold_candidates = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks]
         if not cold_candidates:
-            await send_alert("No COLD candidates for w2")
+            await send_alert(f"[{get_ts()}] | No COLD candidates for w2")
             continue
 
         w2 = random.choice(cold_candidates)
@@ -484,7 +500,7 @@ async def wallet_loop(password):
         if random.random() <= 0.33:
             cold_candidates_w3 = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks and w["pk"] != str(w2_pk)]
             if not cold_candidates_w3:
-                await send_alert("No COLD candidates for w3")
+                await send_alert(f"[{get_ts()}] | No COLD candidates for w3")
             else:
                 w3 = random.choice(cold_candidates_w3)
                 w3_sk = decrypt_secret(w3["sk"], password)
@@ -500,8 +516,19 @@ async def wallet_loop(password):
 
         last_added_time = time.time()
 
-        total_balance = await update_total_balance(password, call="save")
-        await send_alert(f"Total balance updated: {total_balance} SOL")
+        warm_wallets = load_warm_wallets()
+        bonded_balance = 0 
+
+        bonded = load_bonded()
+
+        for w in bonded:
+            pk = str(w["pk"]).strip()
+            sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
+            bonded_balance += sol_balance
+
+        mexc_balance, _ = await cexs.get_cex_balance("MEXC")
+        gate_balance, _ = await cexs.get_cex_balance("Gate")
+        await send_alert(f"[{get_ts()}] | Warm wallets amount: {len(warm_wallets)}\nBonded total balance: {bonded_balance}\nMexc balance: {mexc_balance}\nGate balance: {gate_balance}")
 
 async def password_buffer():
     password = getpass.getpass("Enter password: ")
@@ -511,11 +538,11 @@ async def password_buffer():
     w_sk = decrypt_secret(w["sk"], password)
     try:
         Keypair.from_base58_string(w_sk)
-        print("Password check passed!")
+        print(f"[{get_ts()}] | Password check passed!")
         return password
     except:
-        print("Wrong password!")
-        await send_alert("Wrong password!")
+        print(f"[{get_ts()}] | Wrong password!")
+        await send_alert(f"[{get_ts()}] | Wrong password!")
         raise SystemExit(1)
 
 async def supervise(coro, name):
@@ -523,9 +550,9 @@ async def supervise(coro, name):
         await coro
     except Exception as e:
         tb = traceback.format_exc()
-        print(f"[{name}] crashed: {e}\n{tb}")
+        print(f"[{get_ts()}] | [{name}] crashed: {e}\n{tb}")
         try:
-            await send_alert(f"❗Task `{name}` crashed: {e}")
+            await send_alert(f"[{get_ts()}] | ❗Task `{name}` crashed: {e}")
         except:
             pass
         raise
@@ -533,11 +560,18 @@ async def supervise(coro, name):
 # ---------------- Runner ----------------
 async def runner():
     password = await password_buffer()
-    await asyncio.gather(
-        supervise(wallet_loop(password), "wallets_init"),
-        supervise(dp.start_polling(bot), "tg_bot"),
-        supervise(monitor_inactivity(), "monitor"),
-    )
+    try:
+        await asyncio.gather(
+            supervise(wallet_loop(password), "wallets_init"),
+            supervise(dp.start_polling(bot), "tg_bot"),
+            supervise(monitor_inactivity(), "monitor"),
+        )
+    finally:
+        # аккуратно закрыть клиентов, даже если что-то упало
+        try: await async_client.close()
+        except: pass
+        try: await bot.session.close()
+        except: pass
 
 if __name__ == "__main__":
     asyncio.run(runner())

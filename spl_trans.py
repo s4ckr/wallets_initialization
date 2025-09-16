@@ -1,5 +1,6 @@
 import base64
 import os 
+from datetime import datetime
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solders.message import Message  # type: ignore
@@ -37,6 +38,10 @@ SYSTEM_PROGRAM = Pubkey.from_string("11111111111111111111111111111111")
 PROTOCOL_FEE_RECIP  = Pubkey.from_string("7VtfL8fvgNfhz17qKRMjzQEXgbdpnHHHQRh54R9jP2RJ")
 TOKEN_PROGRAM_PUB   = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 
+def get_ts():
+    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]  
+    return ts
+
 async def send_transaction(client: AsyncClient, payer: Keypair, signers: list[Keypair], instructions: list[Instruction], commitment="processed") -> str | None:
     try:
         message = Message(instructions, payer.pubkey())
@@ -57,7 +62,7 @@ async def send_transaction(client: AsyncClient, payer: Keypair, signers: list[Ke
         return tx_signature
 
     except Exception as e:
-        print(f"Transaction failed: {e}")
+        print(f"[{get_ts()}] | Transaction failed: {e}")
         return None
 
 
@@ -153,14 +158,14 @@ async def send_sol(kp: Keypair, dest: Pubkey):
 
     while retry < 4:
         try:
-            print(f"try to send sol from {kp.pubkey()} to {dest}")
+            print(f"[{get_ts()}] | try to send sol from {kp.pubkey()} to {dest}")
             
             sol_balance = float(((await async_client.get_balance(kp.pubkey(), "processed")).value)/10**9)
            
             min_left = 0.000005
             sol_to_send = sol_balance - min_left
             if sol_to_send <= 0:
-                print("Not enough funds for sending.")
+                print(f"[{get_ts()}] | Not enough funds for sending.")
                 return False
 
             
@@ -189,7 +194,7 @@ async def send_sol(kp: Keypair, dest: Pubkey):
             try:
                 await async_client.confirm_transaction(resp.value, "processed")
             except:
-                print("unable to confirm")
+                print(f"[{get_ts()}] | unable to confirm")
 
             try:
                 error = (await async_client.get_signature_statuses([resp.value], True)).value[0].err
@@ -199,21 +204,22 @@ async def send_sol(kp: Keypair, dest: Pubkey):
             if error:
                 min_left += 0.000000001
                 retry += 1
-                print("has not sent sol")
+                print(f"[{get_ts()}] | has not sent sol")
                 continue
-            print(f"account {kp.pubkey()} sent {sol_to_send:.9f} SOL")
+            print(f"[{get_ts()}] | account {kp.pubkey()} sent {sol_to_send:.9f} SOL")
             return sol_to_send
         except Exception as e:
-            print("Error occurred during transaction:", e)
+            print(f"[{get_ts()}] | Error occurred during transaction:", e)
             return False   
 
 
 async def send_transfer(from_kp, dest_pk):
     try:
         amount = (await async_client.get_balance(from_kp.pubkey())).value
+
         rent = (await async_client.get_minimum_balance_for_rent_exemption(165)).value
         amount = int(amount-rent-5000-1)
-        print(f"Sending {amount/10**9} from {from_kp.pubkey()} to {dest_pk}")
+        print(f"[{get_ts()}] | Sending {amount/10**9} from {from_kp.pubkey()} to {dest_pk}")
 
         instructions = [
             set_compute_unit_price(150),
@@ -239,9 +245,9 @@ async def send_transfer(from_kp, dest_pk):
             recent_blockhash=blockhash_resp
         )
         sig = await async_client.send_raw_transaction(bytes(transaction))
-        print(sig.value)
+        print(f"[{get_ts()}] | {sig.value}")
         return True
     except Exception as e:
-        print("transfer exception", e)
+        print(f"[{get_ts()}] | transfer exception", e)
         return False
     

@@ -1,43 +1,87 @@
 import csv
 import os
 import getpass
+import asyncio
+from typing import Optional, Tuple
 from solders.keypair import Keypair
 from encoding import encrypt_secret
+from solana.rpc.core import RPCException
 
 from config import COLD_CSV, GATE_CSV, MEXC_CSV, NEW_CSV
 import json
 import csv
 import datetime
+from zoneinfo import ZoneInfo
 from solders.pubkey import Pubkey
 from config import async_client
 
-async def get_first_funding_tx(pubkey: str, *, tz: datetime.tzinfo = datetime.timezone.utc):
-    """
-    Возвращает (datetime_iso, funder_pk), где datetime — время блока первой (самой старой в лимите) транзакции,
-    приведённое к указанной таймзоне (по умолчанию UTC).
-    """
-    sigs = await async_client.get_signatures_for_address(Pubkey.from_string(pubkey), limit=1000)
-    if not sigs.value:
-        return None, None
+def get_ts():
+    ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]  
+    return ts
 
-    oldest_sig = sigs.value[-1].signature
-    tx = await async_client.get_transaction(oldest_sig, max_supported_transaction_version=0)
-    if not tx.value:
-        return None, None
+async def get_first_funding_tx(
+    pubkey: str,
+    *,
+    tz: datetime.tzinfo = datetime.timezone.utc,
+) -> tuple[Optional[str], Optional[str]]:
+    retries = 3
+    retry = 0
 
-    block_time = tx.value.block_time
-    if block_time is not None:
-        dt_utc = datetime.datetime.fromtimestamp(block_time, tz=datetime.timezone.utc)
-        fund_datetime = dt_utc.astimezone(tz).isoformat()
-    else:
-        fund_datetime = None
+    while retry < retries:
+        try:
+            pk = Pubkey.from_string(pubkey)
 
-    try:
-        funder_pk = str(tx.value.transaction.transaction.message.account_keys[0])
-    except Exception:
-        funder_pk = None
+            sigs = await async_client.get_signatures_for_address(
+                pk, limit=1000, commitment="confirmed"
+            )
 
-    return fund_datetime, funder_pk
+            if not sigs.value:
+                return None, None
+
+            first = sigs.value[-1]  # самая старая из окна
+            sig = first.signature
+
+            # 1) пробуем взять время блока прямо из info
+            bt = first.block_time
+
+            # 2) тянем транзакцию (в ней может быть block_time и слот)
+            tx = await async_client.get_transaction(
+                sig,
+                max_supported_transaction_version=0,
+                commitment="finalized",
+            )
+            if tx.value:
+                bt = tx.value.block_time
+                if bt is None:
+                    # 3) если и тут нет, берём slot и спрашиваем get_block_time
+                    try:
+                        slot = tx.value.slot
+                        bt_resp = await async_client.get_block_time(slot, commitment="finalized")
+                        bt = bt_resp.value
+                    except Exception:
+                        bt = None
+
+            tz = ZoneInfo("Asia/Almaty")
+
+            fund_datetime = (
+                datetime.datetime.fromtimestamp(bt, tz=datetime.timezone.utc).astimezone(tz)
+                if bt is not None else None
+            )
+
+            # Плательщик (fee payer) как правило первый аккаунт в сообщении
+            funder_pk: Optional[str] = None
+
+            try:
+                if tx and tx.value:
+                    msg = tx.value.transaction.transaction.message
+                    funder_pk = str(msg.account_keys[0])
+            except Exception:
+                pass
+
+            return fund_datetime, funder_pk
+        except Exception as e:
+            print(f"[{get_ts()}] | Exception: ", e)
+            retry+=1
 
 def generate_wallets(password, output, n=50):
     file_exists = os.path.isfile(output) and os.path.getsize(output) > 0
@@ -68,7 +112,7 @@ def generate_funds(n = 10, password = None):
 
         return    
     
-    print("No password")
+    print(f"[{get_ts()}] | No password")
     return
 def password_buffer():
     retry = 0
@@ -77,12 +121,12 @@ def password_buffer():
         password = getpass.getpass("Enter password: ")
         password_check = getpass.getpass("Confirm password: ")
         if password_check != password:
-            print("Passwords does not match!")
+            print(f"[{get_ts()}] | Passwords does not match!")
             retry += 1
         else:
-            print("Passwords match!")
+            print(f"[{get_ts()}] | Passwords match!")
             return password
-    print("Too many retries, blocking.")
+    print(f"[{get_ts()}] | Too many retries, blocking.")
     return
 
 if __name__ == "__main__":
@@ -103,5 +147,4 @@ if __name__ == "__main__":
         if s == "y":
             generate_funds(amount, password)
         else: 
-
-            print("ok")
+            print(f"[{get_ts()}] | no")
