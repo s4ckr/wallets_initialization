@@ -36,7 +36,7 @@ def get_ts():
 async def monitor_inactivity():
     global last_added_time
     while True:
-        await asyncio.sleep(30)
+        await asyncio.sleep(5400)
         if time.time() - last_added_time > ACTIVITY_THRESHOLD:
             await send_alert(f"[{get_ts()}] | ⚠️ BOT IS INACTIVE FOR 3 HOURS!")
             last_added_time = time.time()  # сброс, НЕ завершаем процесс    
@@ -99,7 +99,7 @@ async def add_warm_wallet(cex, wallet):
     pk = _wallet_to_pk(wallet)
 
     try:
-        time.sleep(16)
+        await asyncio.sleep(16)
         fund_datetime, funder_pk = await get_first_funding_tx(pk)
     except Exception as e:
         await send_alert(f"[{get_ts()}] | get_first_funding_tx failed for {pk}: {e}")
@@ -122,7 +122,7 @@ async def add_bonded_wallet(cex, wallet):
     file_exists = os.path.isfile(path)
     pk = _wallet_to_pk(wallet)
     try:
-        time.sleep(16)
+        await asyncio.sleep(16)
         fund_datetime, funder_pk = await get_first_funding_tx(pk)
     except Exception as e:
         # не валим луп, просто пишем пустые поля и предупреждаем
@@ -253,8 +253,8 @@ async def fund_cex(
     S: float,
     password: str,
     bonded_csv_path: str = BONDED_CSV,
-    pace_sleep_sec: float = 20.0,
-    recheck_delay_sec: int = 180
+    pace_sleep_sec: float = 10.0,
+    recheck_delay_sec: int = 300
 ) -> bool:
     B, _ = await cexs.get_cex_balance(cex)
     need = max(0.0, S - float(B))
@@ -413,7 +413,7 @@ async def confirm_deposit_or_alert(
     source_pubkey: str,          
     amount_sent_sol: float,      
     before_balance_sol: float,   
-    recheck_delay_sec: int = 120,  
+    recheck_delay_sec: int = 300,  
     poll_interval_sec: int = 30     
 ) -> bool:
     expected = float(before_balance_sol) + float(amount_sent_sol)
@@ -456,7 +456,6 @@ async def wallet_loop(password):
         wl = load_wl(cex)  
         candidates = [w for w in wl if w["pk"] not in warm_pks]
         if not candidates:
-            await asyncio.sleep(30)
             await send_alert(f"[{get_ts()}] | NO CANDIDATES for {cex}")
             continue
 
