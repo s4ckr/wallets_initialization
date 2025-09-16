@@ -185,7 +185,6 @@ async def update_total_balance(password, call: str = "save") -> float:
     for w in mexc_wl:
         pk = str(w["pk"]).strip()
         sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        print(sol_balance)
         total += sol_balance
 
     mexc_wl_balances = total - mexc_balance - gate_balance
