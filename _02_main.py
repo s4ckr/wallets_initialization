@@ -21,7 +21,7 @@ from spl_trans import send_sol, send_transfer
 from config import (
     PRE_JSON, MEXC_CSV, GATE_CSV, CEXS_LIST, async_client, bot, dp, CHAT_ID,
     BALANCE_THRESHOLD, ACTIVITY_THRESHOLD, WARM_CSV, MIN_FUND_AMOUNT, MAX_FUND_AMOUNT,
-    COLD_CSV, BONDED_CSV, MIN_SLEEP_SECONDS, MAX_SLEEP_SECONDS
+    COLD_CSV, BONDED_CSV, MIN_SLEEP_SECONDS, MAX_SLEEP_SECONDS, MEXC_PK, GATE_PK
 )
 from encoding import decrypt_secret
 
@@ -185,6 +185,7 @@ async def update_total_balance(password, call: str = "save") -> float:
     for w in mexc_wl:
         pk = str(w["pk"]).strip()
         sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
+        print(sol_balance)
         total += sol_balance
 
     mexc_wl_balances = total - mexc_balance - gate_balance
@@ -239,7 +240,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         with open(PRE_JSON, "w", encoding="utf-8") as f:
             json.dump(pre, f, ensure_ascii=False, indent=2)
 
-    await send_alert(f"[{get_ts()}] | 💰 Balance snapshot saved\n Total: {total} SOL \nMEXC:{mexc_balance} \nBonded:{bonded_balances}")
+    await send_alert(f"[{get_ts()}] | 💰 Balance snapshot saved\n Total: {total} SOL \nMEXC:{mexc_balance} \nGate: {gate_balance}\nBonded:{bonded_balances}")
 
     return total
 
