@@ -169,78 +169,98 @@ async def send_alert(text: str):
     await bot.send_message(CHAT_ID, text)
 
 async def update_total_balance(password, call: str = "save") -> float:
-    total = 0
-
-    # CEX balance
+    # 1) CEX balances
     mexc_balance, _ = cexs.get_mexc_balance()
-    print(f"[{get_ts()}] | MEXC balance: ", mexc_balance)
-    total += mexc_balance
+    print(f"[{get_ts()}] | MEXC balance:", mexc_balance)
 
     gate_balance, _ = cexs.get_gate_balance()
     print(f"[{get_ts()}] | Gate balance:", gate_balance)
-    total += gate_balance
 
-    mexc_wl = load_wl("MEXC")
+    # 2) WL (MEXC)
+    mexc_wl_sum = 0.0
+    for w in load_wl("MEXC"):
+        pk_str = str(w["pk"]).strip()
+        try:
+            bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
+            if bal > 0:
+                try:
+                    sk_b58 = decrypt_secret(w["sk"], password)
+                    await finish_funded("MEXC", w, Keypair.from_base58_string(sk_b58), pk_str, password)
+                except Exception as e:
+                    await send_alert(f"[{get_ts()}] | finish_funded MEXC fail {pk_str}: {e}")
+            mexc_wl_sum += bal
+        except Exception as e:
+            print(f"[{get_ts()}] | get_balance WL MEXC {pk_str} err:", e)
+    print(f"[{get_ts()}] | MEXC wl balances:", mexc_wl_sum)
 
-    for w in mexc_wl:
-        pk = str(w["pk"]).strip()
-        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        total += sol_balance
+    # 3) WL (Gate)
+    gate_wl_sum = 0.0
+    for w in load_wl("Gate"):
+        pk_str = str(w["pk"]).strip()
+        try:
+            bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
+            if bal > 0:
+                try:
+                    sk_b58 = decrypt_secret(w["sk"], password)
+                    await finish_funded("Gate", w, Keypair.from_base58_string(sk_b58), pk_str, password)
+                except Exception as e:
+                    await send_alert(f"[{get_ts()}] | finish_funded Gate fail {pk_str}: {e}")
+            gate_wl_sum += bal
+        except Exception as e:
+            print(f"[{get_ts()}] | get_balance WL Gate {pk_str} err:", e)
+    print(f"[{get_ts()}] | Gate wl balances:", gate_wl_sum)
 
-    mexc_wl_balances = total - mexc_balance - gate_balance
-    print(f"[{get_ts()}] | MEXC wl balances: ", mexc_wl_balances)
+    # 4) Warm
+    warm_sum = 0.0
+    warm_rows = load_warm_wallets()
+    for w in warm_rows:
+        pk_str = str(w["pk"]).strip()
+        try:
+            warm_sum += (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
+        except Exception as e:
+            print(f"[{get_ts()}] | get_balance Warm {pk_str} err:", e)
+    print(f"[{get_ts()}] | Warm balances:", warm_sum)
 
-    gate_wl = load_wl("Gate")
+    # 5) Bonded
+    bonded_sum = 0.0
+    for w in load_bonded():
+        pk_str = str(w["pk"]).strip()
+        try:
+            bonded_sum += (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
+        except Exception as e:
+            print(f"[{get_ts()}] | get_balance Bonded {pk_str} err:", e)
+    print(f"[{get_ts()}] | Bonded balances:", bonded_sum)
 
-    for w in gate_wl:
-        pk = str(w["pk"]).strip()
-        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        total += sol_balance
+    total = round(mexc_balance + gate_balance + mexc_wl_sum + gate_wl_sum + warm_sum + bonded_sum, 6)
+    print(f"[{get_ts()}] | Total:", total)
+    print(f"[{get_ts()}] | Warm amount:", len(warm_rows))
 
-    gate_wl_balances = total - mexc_balance - gate_balance - mexc_wl_balances
-    print(f"[{get_ts()}] | Gate wl balances: ", gate_wl_balances)
-
-    # Cold wallets (CSV)
-    warm = load_warm_wallets()
-    for w in warm:
-        pk = str(w["pk"]).strip()
-        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        total += sol_balance
-
-    warm_balances = total - mexc_balance - gate_balance - mexc_wl_balances - gate_wl_balances
-    print(f"[{get_ts()}] | Warm balances: ", warm_balances)
-
-    bonded = load_bonded()
-    for w in bonded:
-        pk = str(w["pk"]).strip()
-        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        total += sol_balance
-
-    bonded_balances = total - mexc_balance - gate_balance - warm_balances - mexc_wl_balances - gate_wl_balances
-    print(f"[{get_ts()}] | Bonded balances: ", bonded_balances)
-
-    total = round(total, 6)
-
-    print(f"[{get_ts()}] | Total: ", total)
-
-    total_warm = len(warm)
-
-    print(f"[{get_ts()}] | Warm amount: ", total_warm)
-
+    # 6) Save/alert
     if call == "save":
-        with open(PRE_JSON, "r") as f:
-            pre = json.load(f)
-        
-        if total < pre["balance"]-BALANCE_THRESHOLD:
-            await send_alert(f"[{get_ts()}] | Total balance decreased too much, change amount: {pre['balance']-total} SOL, total balance: {total} SOL")
+        try:
+            with open(PRE_JSON, "r", encoding="utf-8") as f:
+                pre = json.load(f)
+        except FileNotFoundError:
+            pre = {"balance": total}
+
+        if total < pre["balance"] - BALANCE_THRESHOLD:
+            await send_alert(
+                f"[{get_ts()}] | Total balance decreased too much, change: {pre['balance']-total:.6f} SOL, total: {total} SOL"
+            )
+            # baseline можно оставить прежним, чтобы видеть последующие падения
         else:
             pre["balance"] = total
-            
+
         with open(PRE_JSON, "w", encoding="utf-8") as f:
             json.dump(pre, f, ensure_ascii=False, indent=2)
 
-    await send_alert(f"[{get_ts()}] | 💰 Balance snapshot saved\n Total: {total} SOL \nMEXC:{mexc_balance} \nGate: {gate_balance}\nBonded:{bonded_balances}")
-
+    await send_alert(
+        f"[{get_ts()}] | 💰 Balance snapshot saved\n"
+        f" Total: {total} SOL \n"
+        f" MEXC: {mexc_balance} \n"
+        f" Gate: {gate_balance}\n"
+        f" Bonded: {bonded_sum}"
+    )
     return total
 
 async def _get_sol_balance(kp: Keypair) -> float:
@@ -408,6 +428,64 @@ async def _get_balance_sol(async_client, pubkey_str: str) -> float:
     resp = await async_client.get_balance(Pubkey.from_string(pubkey_str), "processed")
     return resp.value / 1e9
 
+async def finish_funded(cex, w1, w1_kp, w1_pk, password):
+    warm_pks = load_warm_wallets()
+
+    await add_warm_wallet(cex, w1)
+
+    cold_rows = load_cold_wallets()
+    bonded_rows = load_bonded()
+    bonded_pks = {w["pk"] for w in bonded_rows}
+    cold_candidates = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks]
+    
+    if not cold_candidates:
+        await send_alert(f"[{get_ts()}] | No COLD candidates for w2")
+        return
+    
+    w2 = random.choice(cold_candidates)
+    w2_sk = decrypt_secret(w2["sk"], password)
+    w2_kp = Keypair.from_base58_string(w2_sk)
+    w2_pk = w2_kp.pubkey()
+
+    sol_to_w2 = await send_sol(w1_kp, w2_pk)
+    await confirm_deposit_or_alert(str(w2_pk), str(w1_pk), sol_to_w2, 0)
+
+    # if random.random() <= 0.33:
+    #     cold_candidates_w3 = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks and w["pk"] != str(w2_pk)]
+    #     if not cold_candidates_w3:
+    #         await send_alert(f"[{get_ts()}] | No COLD candidates for w3")
+    #     else:
+    #         w3 = random.choice(cold_candidates_w3)
+    #         w3_sk = decrypt_secret(w3["sk"], password)
+    #         w3_kp = Keypair.from_base58_string(w3_sk)
+    #         w3_pk = w3_kp.pubkey()
+
+    #         sol_to_w3 = await send_sol(w2_kp, w3_pk)
+    #         await confirm_deposit_or_alert(str(w3_pk), str(w2_pk), sol_to_w3, 0)
+    #         await add_warm_wallet(cex, w2)
+    #         await add_bonded_wallet(cex, w3)
+    # else:
+    await add_bonded_wallet(cex, w2)
+
+    last_added_time = time.time()
+
+    warm_wallets = load_warm_wallets()
+    bonded_balance = 0 
+
+    bonded = load_bonded()
+
+    for w in bonded:
+        pk = str(w["pk"]).strip()
+        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
+        bonded_balance += sol_balance
+
+    await asyncio.sleep(60)
+
+    mexc_balance, _ = await cexs.get_cex_balance("MEXC")
+    gate_balance, _ = await cexs.get_cex_balance("Gate")
+    await send_alert(f"[{get_ts()}] | Warm wallets amount: {len(warm_wallets)}\nBonded total balance: {bonded_balance}\nMexc balance: {mexc_balance}\nGate balance: {gate_balance}")
+
+
 async def confirm_deposit_or_alert(
     target_pubkey: str,          
     source_pubkey: str,          
@@ -446,7 +524,10 @@ async def confirm_deposit_or_alert(
 async def wallet_loop(password):
     global last_added_time  
     await update_total_balance(password)
+    
+    await send_alert("ALL COLLECTED")
 
+    return
     while True:
         cex = random.choice(CEXS_LIST)
 
