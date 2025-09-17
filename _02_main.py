@@ -149,20 +149,8 @@ async def start_cmd(message: Message):
 
 @dp.message(Command("stats"))   # без слэша
 async def stats_cmd(message: Message):
-    warm_wallets = load_warm_wallets()
-    bonded_balance = 0 
 
-    bonded = load_bonded()
-
-    for w in bonded:
-        pk = str(w["pk"]).strip()
-        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        bonded_balance += sol_balance
-
-    mexc_balance, _ = await cexs.get_cex_balance("MEXC")
-    gate_balance, _ = await cexs.get_cex_balance("Gate")
-    
-    await message.answer(f"Stats: \nWarm wallets amount: {len(warm_wallets)}\nBonded total balance: {bonded_balance}\nMexc balance: {mexc_balance}\nGate balance: {gate_balance}")
+    await update_total_balance(0, "no")
 
 async def send_alert(text: str):
     """Send message to Telegram chat."""
@@ -182,12 +170,6 @@ async def update_total_balance(password, call: str = "save") -> float:
         pk_str = str(w["pk"]).strip()
         try:
             bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
-            if bal > 0:
-                try:
-                    sk_b58 = decrypt_secret(w["sk"], password)
-                    await finish_funded("MEXC", w, Keypair.from_base58_string(sk_b58), pk_str, password)
-                except Exception as e:
-                    await send_alert(f"[{get_ts()}] | finish_funded MEXC fail {pk_str}: {e}")
             mexc_wl_sum += bal
         except Exception as e:
             print(f"[{get_ts()}] | get_balance WL MEXC {pk_str} err:", e)
@@ -199,12 +181,6 @@ async def update_total_balance(password, call: str = "save") -> float:
         pk_str = str(w["pk"]).strip()
         try:
             bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
-            if bal > 0:
-                try:
-                    sk_b58 = decrypt_secret(w["sk"], password)
-                    await finish_funded("Gate", w, Keypair.from_base58_string(sk_b58), pk_str, password)
-                except Exception as e:
-                    await send_alert(f"[{get_ts()}] | finish_funded Gate fail {pk_str}: {e}")
             gate_wl_sum += bal
         except Exception as e:
             print(f"[{get_ts()}] | get_balance WL Gate {pk_str} err:", e)
@@ -428,64 +404,6 @@ async def _get_balance_sol(async_client, pubkey_str: str) -> float:
     resp = await async_client.get_balance(Pubkey.from_string(pubkey_str), "processed")
     return resp.value / 1e9
 
-async def finish_funded(cex, w1, w1_kp, w1_pk, password):
-    warm_pks = load_warm_wallets()
-
-    await add_warm_wallet(cex, w1)
-
-    cold_rows = load_cold_wallets()
-    bonded_rows = load_bonded()
-    bonded_pks = {w["pk"] for w in bonded_rows}
-    cold_candidates = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks]
-    
-    if not cold_candidates:
-        await send_alert(f"[{get_ts()}] | No COLD candidates for w2")
-        return
-    
-    w2 = random.choice(cold_candidates)
-    w2_sk = decrypt_secret(w2["sk"], password)
-    w2_kp = Keypair.from_base58_string(w2_sk)
-    w2_pk = w2_kp.pubkey()
-
-    sol_to_w2 = await send_sol(w1_kp, w2_pk)
-    await confirm_deposit_or_alert(str(w2_pk), str(w1_pk), sol_to_w2, 0)
-
-    # if random.random() <= 0.33:
-    #     cold_candidates_w3 = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks and w["pk"] != str(w2_pk)]
-    #     if not cold_candidates_w3:
-    #         await send_alert(f"[{get_ts()}] | No COLD candidates for w3")
-    #     else:
-    #         w3 = random.choice(cold_candidates_w3)
-    #         w3_sk = decrypt_secret(w3["sk"], password)
-    #         w3_kp = Keypair.from_base58_string(w3_sk)
-    #         w3_pk = w3_kp.pubkey()
-
-    #         sol_to_w3 = await send_sol(w2_kp, w3_pk)
-    #         await confirm_deposit_or_alert(str(w3_pk), str(w2_pk), sol_to_w3, 0)
-    #         await add_warm_wallet(cex, w2)
-    #         await add_bonded_wallet(cex, w3)
-    # else:
-    await add_bonded_wallet(cex, w2)
-
-    last_added_time = time.time()
-
-    warm_wallets = load_warm_wallets()
-    bonded_balance = 0 
-
-    bonded = load_bonded()
-
-    for w in bonded:
-        pk = str(w["pk"]).strip()
-        sol_balance = (await async_client.get_balance(Pubkey.from_string(pk), "processed")).value / 1e9
-        bonded_balance += sol_balance
-
-    await asyncio.sleep(60)
-
-    mexc_balance, _ = await cexs.get_cex_balance("MEXC")
-    gate_balance, _ = await cexs.get_cex_balance("Gate")
-    await send_alert(f"[{get_ts()}] | Warm wallets amount: {len(warm_wallets)}\nBonded total balance: {bonded_balance}\nMexc balance: {mexc_balance}\nGate balance: {gate_balance}")
-
-
 async def confirm_deposit_or_alert(
     target_pubkey: str,          
     source_pubkey: str,          
@@ -524,10 +442,7 @@ async def confirm_deposit_or_alert(
 async def wallet_loop(password):
     global last_added_time  
     await update_total_balance(password)
-    
-    await send_alert("ALL COLLECTED")
 
-    return
     while True:
         cex = random.choice(CEXS_LIST)
 
