@@ -102,6 +102,8 @@ def wait_for_increase_mexc(before_balance: float, timeout: int = 600):
         post_balance, locked = get_mexc_balance()
         if locked > 0:
             print("locked: ", locked)
+        if post_balance > before_balance:
+            return True
         time.sleep(10)
     return post_balance > before_balance
 
@@ -113,6 +115,8 @@ def wait_for_increase_gate(before_balance: float, timeout: int = 600):
         post_balance, locked = get_gate_balance()
         if locked > 0:
             print("locked: ", locked)
+        if post_balance > before_balance:
+            return True
         time.sleep(10)
     return post_balance > before_balance
 

@@ -287,6 +287,24 @@ async def fund_cex(
             except Exception:
                 continue
 
+            if cex == "MEXC":
+                mexc_increased = await cexs.wait_for_increase_mexc(B)
+                if mexc_increased == True:
+                    print("MEXC increased")
+                else:
+                    print("MEXC not increased")
+                    await send_alert("MEXC not increased")
+                    continue
+
+            elif cex == "Gate":
+                gate_increased = await cexs.wait_for_increase_gate(B)
+                if gate_increased == True:
+                    print("Gate increased")
+                else:
+                    print("Gate not increased")
+                    await send_alert("Gate not increased")
+                    continue
+
             used_wallet_pks.append(pk_str)
             sent_total += bal
 
@@ -438,6 +456,7 @@ async def confirm_deposit_or_alert(
     )
     await send_alert(f"[{get_ts()}] | {msg}")
     raise SystemExit(1)
+
 # ---------------- Main wallet logic ----------------
 async def wallet_loop(password):
     global last_added_time  
