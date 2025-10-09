@@ -288,7 +288,7 @@ async def fund_cex(
                 continue
 
             if cex == "MEXC":
-                mexc_increased = await cexs.wait_for_increase_mexc(B)
+                mexc_increased = cexs.wait_for_increase_mexc(B)
                 if mexc_increased == True:
                     print("MEXC increased")
                 else:
@@ -297,7 +297,7 @@ async def fund_cex(
                     continue
 
             elif cex == "Gate":
-                gate_increased = await cexs.wait_for_increase_gate(B)
+                gate_increased = cexs.wait_for_increase_gate(B)
                 if gate_increased == True:
                     print("Gate increased")
                 else:
