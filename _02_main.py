@@ -171,6 +171,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         try:
             bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
             mexc_wl_sum += bal
+            await asyncio.sleep(2)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance WL MEXC {pk_str} err:", e)
     print(f"[{get_ts()}] | MEXC wl balances:", mexc_wl_sum)
@@ -182,27 +183,28 @@ async def update_total_balance(password, call: str = "save") -> float:
         try:
             bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
             gate_wl_sum += bal
+            await asyncio.sleep(2)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance WL Gate {pk_str} err:", e)
     print(f"[{get_ts()}] | Gate wl balances:", gate_wl_sum)
 
-    # 4) Warm
     warm_sum = 0.0
     warm_rows = load_warm_wallets()
     for w in warm_rows:
         pk_str = str(w["pk"]).strip()
         try:
             warm_sum += (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
+            await asyncio.sleep(2)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance Warm {pk_str} err:", e)
     print(f"[{get_ts()}] | Warm balances:", warm_sum)
 
-    # 5) Bonded
     bonded_sum = 0.0
     for w in load_bonded():
         pk_str = str(w["pk"]).strip()
         try:
             bonded_sum += (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
+            await asyncio.sleep(2)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance Bonded {pk_str} err:", e)
     print(f"[{get_ts()}] | Bonded balances:", bonded_sum)
@@ -211,7 +213,6 @@ async def update_total_balance(password, call: str = "save") -> float:
     print(f"[{get_ts()}] | Total:", total)
     print(f"[{get_ts()}] | Warm amount:", len(warm_rows))
 
-    # 6) Save/alert
     if call == "save":
         try:
             with open(PRE_JSON, "r", encoding="utf-8") as f:
@@ -223,7 +224,6 @@ async def update_total_balance(password, call: str = "save") -> float:
             await send_alert(
                 f"[{get_ts()}] | Total balance decreased too much, change: {pre['balance']-total:.6f} SOL, total: {total} SOL"
             )
-            # baseline можно оставить прежним, чтобы видеть последующие падения
         else:
             pre["balance"] = total
 

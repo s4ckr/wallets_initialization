@@ -47,7 +47,7 @@ async def get_first_funding_tx(
                 return None, pubkey
             
             if not sigs.value:
-                return None, None
+                return None,        
 
             first = sigs.value[-1]  
             sig = first.signature
