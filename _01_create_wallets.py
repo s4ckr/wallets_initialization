@@ -19,6 +19,10 @@ def get_ts():
     ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]  
     return ts
 
+def _is_history_unavailable(e: Exception) -> bool:
+    s = str(e).lower()
+    return "-32019" in s or ("history" in s and "available" in s)
+
 async def get_first_funding_tx(
     pubkey: str,
     *,
@@ -30,11 +34,19 @@ async def get_first_funding_tx(
     while retry < retries:
         try:
             pk = Pubkey.from_string(pubkey)
-
-            sigs = await async_client.get_signatures_for_address(
+            try:
+                sigs = await async_client.get_signatures_for_address(
                 pk, limit=1000, commitment="confirmed"
             )
 
+            except Exception as e:
+                if _is_history_unavailable(e):
+                    return None, None
+                if retries > 0:
+                    retries -= 1
+                    continue
+                return None, None
+            
             if not sigs.value:
                 return None, None
 

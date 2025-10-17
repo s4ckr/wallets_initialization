@@ -455,7 +455,7 @@ async def confirm_deposit_or_alert(
         f"Источник вывода: {source_pubkey}"
     )
     await send_alert(f"[{get_ts()}] | {msg}")
-    raise SystemExit(1)
+    return False
 
 # ---------------- Main wallet logic ----------------
 async def wallet_loop(password):
@@ -491,7 +491,10 @@ async def wallet_loop(password):
         print(f"[{get_ts()}] | Sleeping for {to_sleep/60} min")
         await asyncio.sleep(to_sleep)
 
-        await confirm_deposit_or_alert(str(w1_pk), str(cex_pk), amount, w1_before)
+        conf = await confirm_deposit_or_alert(str(w1_pk), str(cex_pk), amount, w1_before)
+
+        if conf == False:
+            continue
 
         await add_warm_wallet(cex, w1)
 
@@ -509,7 +512,10 @@ async def wallet_loop(password):
         w2_pk = w2_kp.pubkey()
 
         sol_to_w2 = await send_sol(w1_kp, w2_pk)
-        await confirm_deposit_or_alert(str(w2_pk), str(w1_pk), sol_to_w2, 0)
+        conf = await confirm_deposit_or_alert(str(w2_pk), str(w1_pk), sol_to_w2, 0)
+
+        if conf == False:
+            continue
 
         if random.random() <= 0.33:
             cold_candidates_w3 = [w for w in cold_rows if w["pk"] not in warm_pks and w["pk"] not in bonded_pks and w["pk"] != str(w2_pk)]
@@ -522,7 +528,11 @@ async def wallet_loop(password):
                 w3_pk = w3_kp.pubkey()
 
                 sol_to_w3 = await send_sol(w2_kp, w3_pk)
-                await confirm_deposit_or_alert(str(w3_pk), str(w2_pk), sol_to_w3, 0)
+                conf = await confirm_deposit_or_alert(str(w3_pk), str(w2_pk), sol_to_w3, 0)
+                
+                if conf == False:
+                    continue
+                
                 await add_warm_wallet(cex, w2)
                 await add_bonded_wallet(cex, w3)
         else:
