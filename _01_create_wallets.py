@@ -38,25 +38,22 @@ async def get_first_funding_tx(
                 sigs = await async_client.get_signatures_for_address(
                 pk, limit=1000, commitment="confirmed"
             )
-
             except Exception as e:
                 if _is_history_unavailable(e):
-                    return None, None
+                    return None, pubkey
                 if retries > 0:
                     retries -= 1
                     continue
-                return None, None
+                return None, pubkey
             
             if not sigs.value:
                 return None, None
 
-            first = sigs.value[-1]  # самая старая из окна
+            first = sigs.value[-1]  
             sig = first.signature
 
-            # 1) пробуем взять время блока прямо из info
             bt = first.block_time
 
-            # 2) тянем транзакцию (в ней может быть block_time и слот)
             tx = await async_client.get_transaction(
                 sig,
                 max_supported_transaction_version=0,
