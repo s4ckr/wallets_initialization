@@ -217,7 +217,6 @@ async def send_transfer(from_kp, dest_pk):
     try:
         amount = (await async_client.get_balance(from_kp.pubkey())).value
 
-        rent = (await async_client.get_minimum_balance_for_rent_exemption(165)).value
         amount = int(amount-5000-1)
         print(f"[{get_ts()}] | Sending {amount/10**9} from {from_kp.pubkey()} to {dest_pk}")
 

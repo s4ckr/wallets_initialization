@@ -171,7 +171,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         try:
             bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
             mexc_wl_sum += bal
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance WL MEXC {pk_str} err:", e)
     print(f"[{get_ts()}] | MEXC wl balances:", mexc_wl_sum)
@@ -183,7 +183,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         try:
             bal = (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
             gate_wl_sum += bal
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance WL Gate {pk_str} err:", e)
     print(f"[{get_ts()}] | Gate wl balances:", gate_wl_sum)
@@ -194,7 +194,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         pk_str = str(w["pk"]).strip()
         try:
             warm_sum += (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance Warm {pk_str} err:", e)
     print(f"[{get_ts()}] | Warm balances:", warm_sum)
@@ -204,7 +204,7 @@ async def update_total_balance(password, call: str = "save") -> float:
         pk_str = str(w["pk"]).strip()
         try:
             bonded_sum += (await async_client.get_balance(Pubkey.from_string(pk_str), "processed")).value / 1e9
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)
         except Exception as e:
             print(f"[{get_ts()}] | get_balance Bonded {pk_str} err:", e)
     print(f"[{get_ts()}] | Bonded balances:", bonded_sum)
